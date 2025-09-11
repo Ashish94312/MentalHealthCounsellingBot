@@ -1,0 +1,48 @@
+# Ultra-optimized Dockerfile for Railway deployment
+FROM python:3.11-slim AS builder
+
+# Install only essential build dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential \
+        gcc && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Python dependencies
+COPY requirements-production.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --user -r /tmp/requirements.txt
+
+# Final stage - minimal runtime
+FROM python:3.11-slim
+
+# Environment
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DJANGO_SETTINGS_MODULE=chatbot_project.settings \
+    PATH=/root/.local/bin:$PATH
+
+# Copy Python packages from builder
+COPY --from=builder /root/.local /root/.local
+
+# Set workdir
+WORKDIR /app
+
+# Copy only essential files
+COPY chatbot_project/ /app/chatbot_project/
+COPY tinylama-mental-health-mentalchat16k/ /app/tinylama-mental-health-mentalchat16k/
+
+# Collect static files
+RUN python chatbot_project/manage.py collectstatic --noinput
+
+# Create non-root user
+RUN useradd --create-home --shell /bin/bash app && \
+    chown -R app:app /app
+
+# Switch to non-root user
+USER app
+
+# Expose port
+EXPOSE 8000
+
+# Start command
+CMD ["sh", "-c", "python chatbot_project/manage.py migrate && gunicorn chatbot_project.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 1 --timeout 120"]

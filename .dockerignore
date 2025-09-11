@@ -56,3 +56,12 @@ test_*
 
 # Jupyter notebook checkpoints
 .ipynb_checkpoints/
+
+# Additional exclusions for Railway optimization
+*.md
+*.txt
+!requirements-production.txt
+!Dockerfile
+!.dockerignore
+!railway.json
+!Procfile
