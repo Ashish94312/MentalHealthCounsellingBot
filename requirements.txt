@@ -51,3 +51,9 @@ tzdata==2025.2
 urllib3==2.5.0
 xxhash==3.5.0
 yarl==1.20.1
+
+# Deployment
+gunicorn==23.0.0
+whitenoise==6.7.0
+dj-database-url==2.3.0
+python-dotenv==1.0.1

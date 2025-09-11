@@ -1,0 +1,31 @@
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+
+# VCS
+.git
+.gitignore
+
+# Node/Frontend (if any)
+node_modules
+
+# Env
+.env
+*.env
+
+# Datasets and training artifacts
+/data
+/tinylama-mental-health
+/tinylama-mental-health-v2
+/solution.ipynb
+
+# Django collectstatic output
+/staticfiles
+
+# OS/Editor
+.DS_Store
+*.swp
+*.swo
