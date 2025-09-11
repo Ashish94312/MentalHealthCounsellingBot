@@ -1,5 +1,5 @@
 # Multi-stage build to reduce final image size
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 # Environment for builder stage
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -30,28 +30,25 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Copy Python packages from builder stage
 COPY --from=builder /root/.local /root/.local
 
-# Create non-root user for security
-RUN useradd --create-home --shell /bin/bash app && \
-    chown -R app:app /home/app
-
 # Set workdir
 WORKDIR /app
 
 # Copy only necessary application files
 COPY chatbot_project/ /app/chatbot_project/
-COPY manage.py /app/manage.py
 
 # Copy only the specific model directory needed for production
 COPY tinylama-mental-health-mentalchat16k/ /app/tinylama-mental-health-mentalchat16k/
 
-# Change ownership to app user
-RUN chown -R app:app /app
+# Collect static files as root (before switching to non-root user)
+RUN python chatbot_project/manage.py collectstatic --noinput
+
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash app && \
+    chown -R app:app /home/app && \
+    chown -R app:app /app
 
 # Switch to non-root user
 USER app
-
-# Collect static files
-RUN python chatbot_project/manage.py collectstatic --noinput
 
 # Expose port
 EXPOSE 8000
