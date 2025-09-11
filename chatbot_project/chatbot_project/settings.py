@@ -37,13 +37,13 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
 if 'testserver' not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append('testserver')
 # Add Railway domain
-if 'agentdocai-production.up.railway.app' not in ALLOWED_HOSTS:
-    ALLOWED_HOSTS.append('agentdocai-production.up.railway.app')
+if 'mentalhealthcounsellingbot-production.up.railway.app' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('mentalhealthcounsellingbot-production.up.railway.app')
 
 CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
 # Add Railway domain to CSRF trusted origins
-if 'https://agentdocai-production.up.railway.app' not in CSRF_TRUSTED_ORIGINS:
-    CSRF_TRUSTED_ORIGINS.append('https://agentdocai-production.up.railway.app')
+if 'https://mentalhealthcounsellingbot-production.up.railway.app' not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append('https://mentalhealthcounsellingbot-production.up.railway.app')
 
 
 # Application definition
