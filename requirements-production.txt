@@ -1,0 +1,28 @@
+# Core Django dependencies
+Django==5.2.6
+gunicorn==23.0.0
+whitenoise==6.7.0
+dj-database-url==2.3.0
+python-dotenv==1.0.1
+
+# Essential ML libraries for inference only
+torch==2.8.0
+transformers==4.56.1
+tokenizers==0.22.0
+safetensors==0.6.2
+accelerate==1.10.1
+peft==0.17.1
+
+# Basic utilities
+numpy==2.3.2
+requests==2.32.5
+Pillow>=8.0.0
+
+# Remove heavy training dependencies:
+# - datasets (only needed for training)
+# - bitsandbytes (only needed for training)
+# - trl (only needed for training)
+# - sentence-transformers (if not used in production)
+# - scikit-learn (if not used in production)
+# - scipy (if not used in production)
+# - pandas (if not used in production)

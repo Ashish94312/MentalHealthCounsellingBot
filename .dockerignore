@@ -1,31 +1,58 @@
-# Python
-__pycache__
+# Training data and datasets
+data/
+*.jsonl
+*.arrow
+
+# Multiple model directories (keep only the one needed for production)
+tinylama-mental-health/
+tinylama-mental-health-v2/
+
+# Training scripts
+tinylama-fine-tuning*.py
+solution.ipynb
+
+# Development files
+README*.md
+SETUP_INSTRUCTIONS.md
+hf_upload.py
+
+# Git and version control
+.git/
+.gitignore
+
+# Python cache
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.sqlite3
+.Python
+*.so
 
-# VCS
-.git
-.gitignore
+# Virtual environments
+venv/
+env/
+.venv/
 
-# Node/Frontend (if any)
-node_modules
-
-# Env
-.env
-*.env
-
-# Datasets and training artifacts
-/data
-/tinylama-mental-health
-/tinylama-mental-health-v2
-/solution.ipynb
-
-# Django collectstatic output
-/staticfiles
-
-# OS/Editor
-.DS_Store
+# IDE files
+.vscode/
+.idea/
 *.swp
 *.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Documentation
+docs/
+
+# Tests
+tests/
+test_*
+*_test.py
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
