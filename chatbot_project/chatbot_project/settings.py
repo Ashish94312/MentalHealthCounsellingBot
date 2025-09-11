@@ -24,12 +24,26 @@ BASE_DIR = Path(__file__).resolve().parent
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('SECRET_KEY', 'change-me-in-production')
+SECRET_KEY = os.getenv('SECRET_KEY', 'django-insecure-your-secret-key-here-change-in-production')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'False').lower() in ['1', 'true', 'yes']
 
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
+
+# Allow all hosts for Railway deployment
+ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '*').split(',')
+# Add testserver for Django test client
+if 'testserver' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('testserver')
+# Add Railway domain
+if 'agentdocai-production.up.railway.app' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('agentdocai-production.up.railway.app')
+
+CSRF_TRUSTED_ORIGINS = os.getenv('CSRF_TRUSTED_ORIGINS', '').split(',')
+# Add Railway domain to CSRF trusted origins
+if 'https://agentdocai-production.up.railway.app' not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append('https://agentdocai-production.up.railway.app')
 
 
 # Application definition
@@ -49,7 +63,7 @@ MIDDLEWARE = [
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    # 'django.middleware.csrf.CsrfViewMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -134,3 +148,22 @@ STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+
+# Production settings
+if not DEBUG:
+    # Security settings for production
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_HSTS_SECONDS = 31536000
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    
+    # HTTPS settings (Railway handles this)
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    # Disable SSL redirect to allow healthcheck requests over HTTP
+    SECURE_SSL_REDIRECT = False
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
