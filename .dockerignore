@@ -67,5 +67,5 @@ render.yaml
 railway.json
 Procfile
 requirements.txt
-requirements-production.txt
+# requirements-production.txt - needed for railway build
 # requirements-ultra-minimal.txt - needed for optimized build
