@@ -1,0 +1,12 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile.railway-cached"
+
+[deploy]
+startCommand = "python chatbot_project/manage.py migrate && gunicorn chatbot_project.wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120"
+healthcheckPath = "/"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+
+[build.docker]
+cache = true
