@@ -100,23 +100,26 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 MODEL_PATH = os.path.join(BASE_DIR, "tinylama-mental-health-mentalchat16k")
 
 logger.info("Loading fine-tuned TinyLlama model...")
-# Use MPS device if available (Apple Silicon), otherwise fall back to CPU
-device = "mps" if torch.backends.mps.is_available() else "cpu"
+# Force CPU for Railway deployment to avoid memory issues
+device = "cpu"
 logger.info(f"Using device: {device}")
 
+# Load tokenizer
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
-model = AutoModelForCausalLM.from_pretrained(MODEL_PATH).to(device)
 
-# Optimize model for inference speed
+# Load model with memory optimizations
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_PATH,
+    torch_dtype=torch.float16,  # Use half precision to save memory
+    low_cpu_mem_usage=True,     # Optimize memory usage
+    device_map="cpu"            # Force CPU loading
+)
+
+# Optimize model for inference
 model.eval()
-if hasattr(torch, 'compile') and device in ["mps", "cpu"]:
-    try:
-        model = torch.compile(model, mode="reduce-overhead")
-        logger.info("✅ Model compiled for faster inference")
-    except Exception as e:
-        logger.warning(f"Model compilation failed: {e}")
 
-logger.info(f"✅ Model loaded on {device}")
+# Disable compilation on Railway to save memory
+logger.info(f"✅ Model loaded on {device} with memory optimizations")
 
 
 def generate_reply(user_input: str, conversation_history: list = None) -> str:
