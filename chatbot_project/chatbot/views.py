@@ -100,17 +100,16 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 MODEL_PATH = os.path.join(BASE_DIR, "tinylama-mental-health-mentalchat16k")
 
 logger.info("Loading fine-tuned TinyLlama model...")
-# Use only MPS device as preferred
-device = "mps" if torch.backends.mps.is_available() else None
-if device is None:
-    raise RuntimeError("MPS device is not available. This application requires MPS support.")
+# Use MPS device if available (Apple Silicon), otherwise fall back to CPU
+device = "mps" if torch.backends.mps.is_available() else "cpu"
+logger.info(f"Using device: {device}")
 
 tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
 model = AutoModelForCausalLM.from_pretrained(MODEL_PATH).to(device)
 
 # Optimize model for inference speed
 model.eval()
-if hasattr(torch, 'compile') and device == "mps":
+if hasattr(torch, 'compile') and device in ["mps", "cpu"]:
     try:
         model = torch.compile(model, mode="reduce-overhead")
         logger.info("✅ Model compiled for faster inference")
