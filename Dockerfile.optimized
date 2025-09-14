@@ -1,0 +1,66 @@
+# Ultra-optimized Dockerfile for Railway deployment
+# Target: <3GB image size
+
+# Use Alpine Linux for minimal base image
+FROM python:3.11-alpine AS builder
+
+# Install only essential build dependencies
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    && rm -rf /var/cache/apk/*
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install Python dependencies
+COPY requirements-production.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Final stage - minimal runtime
+FROM python:3.11-alpine
+
+# Install only runtime dependencies
+RUN apk add --no-cache \
+    libgomp \
+    && rm -rf /var/cache/apk/*
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DJANGO_SETTINGS_MODULE=chatbot_project.settings \
+    PYTHONPATH=/app
+
+# Set workdir
+WORKDIR /app
+
+# Copy only essential application files
+COPY chatbot_project/ /app/chatbot_project/
+
+# Copy only the essential model files (excluding checkpoints)
+COPY tinylama-mental-health-mentalchat16k/adapter_config.json /app/tinylama-mental-health-mentalchat16k/
+COPY tinylama-mental-health-mentalchat16k/adapter_model.safetensors /app/tinylama-mental-health-mentalchat16k/
+COPY tinylama-mental-health-mentalchat16k/tokenizer.json /app/tinylama-mental-health-mentalchat16k/
+COPY tinylama-mental-health-mentalchat16k/tokenizer_config.json /app/tinylama-mental-health-mentalchat16k/
+COPY tinylama-mental-health-mentalchat16k/special_tokens_map.json /app/tinylama-mental-health-mentalchat16k/
+COPY tinylama-mental-health-mentalchat16k/chat_template.jinja /app/tinylama-mental-health-mentalchat16k/
+
+# Create non-root user
+RUN adduser -D -s /bin/sh app && \
+    chown -R app:app /app
+
+# Switch to non-root user
+USER app
+
+# Expose port
+EXPOSE 8000
+
+# Start command
+CMD ["sh", "-c", "python chatbot_project/manage.py migrate && gunicorn chatbot_project.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 1 --timeout 120 --worker-class sync"]

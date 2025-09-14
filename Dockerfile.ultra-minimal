@@ -1,0 +1,71 @@
+# Ultra-minimal Dockerfile for Railway deployment
+# Target: <2GB image size using aggressive optimization
+
+# Stage 1: Build dependencies
+FROM python:3.11-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    libffi-dev \
+    linux-headers
+
+# Create virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install dependencies
+COPY requirements-ultra-minimal.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Stage 2: Final minimal image
+FROM python:3.11-alpine
+
+# Install only runtime dependencies
+RUN apk add --no-cache \
+    libgomp \
+    && rm -rf /var/cache/apk/* /tmp/* /var/tmp/*
+
+# Copy virtual environment
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DJANGO_SETTINGS_MODULE=chatbot_project.settings \
+    PYTHONPATH=/app \
+    PYTHONHASHSEED=random
+
+# Create app user
+RUN adduser -D -s /bin/sh app
+
+# Set workdir
+WORKDIR /app
+
+# Copy Django application
+COPY --chown=app:app chatbot_project/ /app/chatbot_project/
+
+# Copy only essential model files (no checkpoints)
+RUN mkdir -p /app/tinylama-mental-health-mentalchat16k
+COPY --chown=app:app tinylama-mental-health-mentalchat16k/adapter_config.json /app/tinylama-mental-health-mentalchat16k/
+COPY --chown=app:app tinylama-mental-health-mentalchat16k/adapter_model.safetensors /app/tinylama-mental-health-mentalchat16k/
+COPY --chown=app:app tinylama-mental-health-mentalchat16k/tokenizer.json /app/tinylama-mental-health-mentalchat16k/
+COPY --chown=app:app tinylama-mental-health-mentalchat16k/tokenizer_config.json /app/tinylama-mental-health-mentalchat16k/
+COPY --chown=app:app tinylama-mental-health-mentalchat16k/special_tokens_map.json /app/tinylama-mental-health-mentalchat16k/
+COPY --chown=app:app tinylama-mental-health-mentalchat16k/chat_template.jinja /app/tinylama-mental-health-mentalchat16k/
+
+# Switch to non-root user
+USER app
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import requests; requests.get('http://localhost:8000/', timeout=5)" || exit 1
+
+# Start command
+CMD ["sh", "-c", "python chatbot_project/manage.py migrate && gunicorn chatbot_project.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 1 --timeout 120 --worker-class sync --max-requests 1000 --max-requests-jitter 100"]
