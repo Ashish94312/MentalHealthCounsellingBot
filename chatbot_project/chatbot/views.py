@@ -7,6 +7,7 @@ from django.views.decorators.http import require_http_methods
 import os
 import json
 import logging
+import re
 
 # Hugging Face / Transformers
 import torch
@@ -65,6 +66,31 @@ If the client asks who you are, respond clearly:
 "I’m an AI mental health support assistant here to listen and provide supportive guidance."
 """
 
+# Default identity response (can be overridden via cache key "who_are_you_response")
+WHO_ARE_YOU_DEFAULT = "I’m an AI mental health support assistant here to listen and provide supportive guidance."
+
+def get_identity_response() -> str:
+    """Return the identity response, allowing override from cache."""
+    return cache.get("who_are_you_response", WHO_ARE_YOU_DEFAULT)
+
+def is_identity_query(text: str) -> bool:
+    """Detect if user is asking about the assistant's identity."""
+    if not text:
+        return False
+    t = text.lower().strip()
+    identity_phrases = [
+        "who are you",
+        "what are you",
+        "who am i talking to",
+        "who is this",
+        "what is your name",
+        "are you human",
+        "are you a bot",
+        "introduce yourself",
+        "tell me about yourself",
+    ]
+    return any(p in t for p in identity_phrases)
+
 CRISIS_KEYWORDS = [
     'suicide', 'kill myself', 'end my life', 'not worth living', 'better off dead',
     'hurt myself', 'self harm', 'cut myself', 'overdose', 'jump off', 'hang myself',
@@ -99,31 +125,70 @@ Please reach out to a trusted friend, family member, or mental health profession
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 MODEL_PATH = os.path.join(BASE_DIR, "tinylama-mental-health-mentalchat16k")
 
-logger.info("Loading fine-tuned TinyLlama model...")
-# Force CPU for Railway deployment to avoid memory issues
+# Global variables for lazy loading
+tokenizer = None
+model = None
 device = "cpu"
-logger.info(f"Using device: {device}")
 
-# Load tokenizer
-tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+def load_model():
+    """Load model lazily to reduce startup memory usage and select best device."""
+    global tokenizer, model, device
 
-# Load model with memory optimizations
-model = AutoModelForCausalLM.from_pretrained(
-    MODEL_PATH,
-    torch_dtype=torch.float16,  # Use half precision to save memory
-    low_cpu_mem_usage=True,     # Optimize memory usage
-    device_map="cpu"            # Force CPU loading
-)
+    if model is not None:
+        return tokenizer, model, device
 
-# Optimize model for inference
-model.eval()
+    # Prefer GPU/MPS if available; otherwise fall back to CPU
+    if torch.backends.mps.is_available():
+        device = "mps"
+    elif torch.cuda.is_available():
+        device = "cuda"
+    else:
+        device = "cpu"
 
-# Disable compilation on Railway to save memory
-logger.info(f"✅ Model loaded on {device} with memory optimizations")
+    logger.info("Loading fine-tuned TinyLlama model...")
+    logger.info(f"Using device: {device}")
+
+    # Load tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+
+    # Choose dtype appropriate to device
+    if device in ("cuda", "mps"):
+        load_dtype = torch.float16
+    else:
+        load_dtype = torch.float32  # safer on CPU
+
+    # Load model
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_PATH,
+        dtype=load_dtype,
+        low_cpu_mem_usage=True,
+        trust_remote_code=True,
+        use_safetensors=True
+    )
+
+    # Move model to device if not already handled
+    model.to(device)
+
+    # Optimize model for inference
+    model.eval()
+
+    # Optional compile for speed on supported setups
+    try:
+        if hasattr(torch, "compile") and device in ("cuda", "mps"):
+            model = torch.compile(model, mode="reduce-overhead")
+            logger.info("✅ Model compiled for faster inference")
+    except Exception as compile_error:
+        logger.warning(f"Model compile skipped: {compile_error}")
+
+    logger.info(f"✅ Model loaded on {device} with memory optimizations")
+    return tokenizer, model, device
 
 
 def generate_reply(user_input: str, conversation_history: list = None) -> str:
     """Generate a reply from the fine-tuned TinyLlama"""
+    
+    # Load model lazily on first use
+    global_tokenizer, global_model, global_device = load_model()
     
     # Build context-aware prompt
     if conversation_history and len(conversation_history) > 0:
@@ -133,11 +198,11 @@ def generate_reply(user_input: str, conversation_history: list = None) -> str:
     else:
         prompt = f"{SYSTEM_PROMPT}\n\nClient: {user_input}\nCounselor:"
     
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(device)
+    inputs = global_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=512).to(global_device)
     
     # Simple generation
     with torch.no_grad():
-        outputs = model.generate(
+        outputs = global_model.generate(
             **inputs,
             max_new_tokens=500,
             temperature=0.7,
@@ -145,12 +210,11 @@ def generate_reply(user_input: str, conversation_history: list = None) -> str:
             top_k=40,
             repetition_penalty=1.15,
             do_sample=True,
-            pad_token_id=tokenizer.eos_token_id,
-            eos_token_id=tokenizer.eos_token_id,
-            early_stopping=True
+            pad_token_id=global_tokenizer.eos_token_id,
+            eos_token_id=global_tokenizer.eos_token_id
         )
         
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+        response = global_tokenizer.decode(outputs[0], skip_special_tokens=True)
     
     # Clean and validate the response
     cleaned_response = clean_and_validate_response(response, prompt)
@@ -168,25 +232,31 @@ def clean_and_validate_response(response: str, original_prompt: str) -> str:
     
     # Remove artifacts
     cleaned = cleaned.replace("Client:", "").strip()
+    cleaned = cleaned.replace("User:", "").strip()
     cleaned = cleaned.replace("Human:", "").strip()
     cleaned = cleaned.replace("Assistant:", "").strip()
-    
-    # Remove incomplete sentences at the end
-    sentences = cleaned.split('.')
-    if len(sentences) > 1 and len(sentences[-1].strip()) < 10:
-        cleaned = '.'.join(sentences[:-1]) + '.'
-    
-    # Ensure proper ending
-    if not cleaned.endswith(('.', '!', '?')):
-        cleaned += '.'
+
+    # If the model started imagining the next turn, cut at the next speaker label
+    speaker_label_pattern = re.compile(r"\n(?:Client|User|Human|Assistant|Counselor):", re.IGNORECASE)
+    match = speaker_label_pattern.search(cleaned)
+    if match:
+        cleaned = cleaned[:match.start()].rstrip()
+
+    # Avoid truncating numbered lists like "1." "2." etc. Keep original text.
+    # Light formatting: add newlines before common list markers for readability
+    cleaned = cleaned.replace(" 1.", "\n1.")
+    cleaned = cleaned.replace(" 2.", "\n2.")
+    cleaned = cleaned.replace(" 3.", "\n3.")
+    cleaned = cleaned.replace(" 4.", "\n4.")
+    cleaned = cleaned.replace(" 5.", "\n5.")
+    cleaned = cleaned.replace(" - ", "\n- ")
     
     # Quality checks
     if len(cleaned) < 10:
         cleaned = "I understand you're going through a difficult time. Could you tell me more about what's on your mind?"
-    elif len(cleaned) > 400:
-        # Truncate if too long
-        sentences = cleaned.split('.')
-        cleaned = '.'.join(sentences[:3]) + '.'
+    elif len(cleaned) > 1200:
+        # Truncate if extremely long, but keep more content to avoid cutting lists
+        cleaned = cleaned[:1200].rsplit('\n', 1)[0]
     
     return cleaned
 
@@ -220,6 +290,16 @@ def chatbot_response(request):
             if detect_crisis(user_input):
                 logger.warning(f"Crisis detected: {user_input[:100]}...")
                 return JsonResponse(get_crisis_response())
+
+            # Quick path for identity questions (bypass model)
+            if is_identity_query(user_input):
+                identity_reply = get_identity_response()
+                save_conversation(session_id, user_input, identity_reply)
+                return JsonResponse({
+                    'reply': identity_reply,
+                    'is_crisis': False,
+                    'session_id': session_id
+                })
 
             # Generate response with conversation context
             chatbot_reply = generate_reply(user_input, conversation_history)

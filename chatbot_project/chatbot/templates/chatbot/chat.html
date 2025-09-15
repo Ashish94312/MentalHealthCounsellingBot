@@ -3,57 +3,58 @@
 {% block title %}Chatbot Interface{% endblock %}
 
 {% block content %}
-<h1 style="text-align: center;">Chatbot</h1>
+<div class="container">
+    <div class="card">
+        <div class="card-header">
+            <div style="width: 10px; height: 10px; background:#10b981; border-radius: 9999px;"></div>
+            <h1 class="card-title">Mental Health Support Chat</h1>
+        </div>
+        <div id="chatArea" style="padding: 16px; height: 480px; overflow-y: auto; background-color: #fafafa; border-radius: 0 0 12px 12px;"></div>
+    </div>
 
-
-<div id="chatArea" style="border: 1px solid #ccc; border-radius: 10px; padding: 15px; height: 400px; overflow-y: auto; background-color: #f5f5f5; margin-bottom: 10px;"></div>
-
-
-<form id="chatForm" style="display: flex;">
-    <input type="text" id="userInput" placeholder="Type your message here..." aria-label="Type your message here" style="flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ccc; font-size: 16px; outline: none;">
-    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
-    <button type="submit" style="padding: 10px 20px; margin-left: 10px; border: none; border-radius: 20px; background-color: #007bff; color: white; font-size: 16px; cursor: pointer;">Send</button>
-</form>
+    <form id="chatForm" style="display: flex; gap: 10px; margin-top: 12px; align-items: center;">
+        <input type="text" id="userInput" placeholder="Type your message here..." aria-label="Type your message here" style="flex: 1; padding: 12px 16px; border-radius: 9999px; border: 1px solid #d1d5db; font-size: 16px; outline: none; background: #ffffff;">
+        <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+        <button type="submit" style="padding: 12px 18px; border: none; border-radius: 9999px; background-color: #2563eb; color: white; font-size: 16px; cursor: pointer;">Send</button>
+    </form>
+</div>
 
 <script>
     $(document).ready(function(){
-        // Session management
         let sessionId = localStorage.getItem('chatbot_session_id');
         if (!sessionId) {
             sessionId = generateSessionId();
             localStorage.setItem('chatbot_session_id', sessionId);
         }
-        
+
         function generateSessionId() {
             return 'session_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
         }
-        
+
         function scrollToBottom() {
             $('#chatArea').scrollTop($('#chatArea')[0].scrollHeight);
         }
 
-
         function appendMessage(sender, message, isUser, isCrisis = false) {
             const chatBubble = $('<div>').addClass('chat-bubble');
-            
-            // Handle crisis messages with special formatting
+
             if (isCrisis) {
                 chatBubble.addClass('crisis-message');
-                chatBubble.html(message.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'));
+                chatBubble.html(message.replace(/\*\*(.*?)\*\*/g, '<strong>$1<\/strong>'));
             } else {
                 chatBubble.text(message);
             }
-            
+
             const chatWrapper = $('<div>').addClass('chat-message').append(chatBubble);
 
             if (isUser) {
                 chatWrapper.css({'text-align': 'right'});
-                chatBubble.css({'background-color': '#007bff', 'color': 'white', 'border-radius': '15px 15px 0 15px'});
+                chatBubble.css({'background-color': '#2563eb', 'color': 'white', 'border-radius': '16px 16px 0 16px'});
             } else {
                 if (isCrisis) {
-                    chatBubble.css({'background-color': '#ffebee', 'color': '#c62828', 'border': '2px solid #f44336', 'border-radius': '15px 15px 15px 0'});
+                    chatBubble.css({'background-color': '#ffebee', 'color': '#c62828', 'border': '2px solid #f44336', 'border-radius': '16px 16px 16px 0'});
                 } else {
-                    chatBubble.css({'background-color': '#eaeaea', 'color': '#333', 'border-radius': '15px 15px 15px 0'});
+                    chatBubble.css({'background-color': '#eaeaea', 'color': '#111827', 'border-radius': '16px 16px 16px 0'});
                 }
             }
 
@@ -61,25 +62,40 @@
             scrollToBottom();
         }
 
+        function appendTypingIndicator() {
+            const dots = `
+                <span class="dot"></span>
+                <span class="dot"></span>
+                <span class="dot"></span>
+            `;
+            const typing = $('<div id="typingIndicator" class="chat-message">')
+                .append($('<div class="chat-bubble bot">').html(`<span class="thinking-label">Bot is thinking</span><span class="ellipsis">${dots}</span>`));
+            typing.find('.chat-bubble').css({'background-color': '#eaeaea', 'color': '#111827', 'border-radius': '16px 16px 16px 0'});
+            $('#chatArea').append(typing);
+            scrollToBottom();
+        }
+
+        function removeTypingIndicator() {
+            $('#typingIndicator').remove();
+        }
+
         $('#chatForm').on('submit', function(event){
             event.preventDefault();
 
-
             var userInput = $('#userInput').val().trim();
-
 
             if (!userInput) {
                 alert('Please enter a message.');
                 return;
             }
 
-
             appendMessage('You', userInput, true);
-
-
+            // Clear the input immediately after submitting
+            $('#userInput').val('');
             $('#userInput').prop('disabled', true);
             $('button[type="submit"]').prop('disabled', true);
 
+            appendTypingIndicator();
 
             $.ajax({
                 url: '',
@@ -90,37 +106,34 @@
                     'csrfmiddlewaretoken': '{{ csrf_token }}'
                 },
                 success: function(response){
-                    // Update session ID if provided
                     if (response.session_id) {
                         sessionId = response.session_id;
                         localStorage.setItem('chatbot_session_id', sessionId);
                     }
-                    
-                    // Handle crisis responses with special formatting
+
+                    removeTypingIndicator();
+
                     if (response.is_crisis) {
                         appendMessage('Bot', response.reply, false, true);
-                        // Show additional crisis resources
                         showCrisisResources();
                     } else {
                         appendMessage('Bot', response.reply, false, false);
                     }
-                    
-                    $('#userInput').val(''); 
-                    $('#userInput').focus();  
+
                 },
                 error: function(){
+                    removeTypingIndicator();
                     alert('Something went wrong. Please try again.');
                 },
                 complete: function() {
-
                     $('#userInput').prop('disabled', false);
                     $('button[type="submit"]').prop('disabled', false);
+                    $('#userInput').focus();
                 }
             });
         });
 
         function showCrisisResources() {
-            // Create a modal or alert with crisis resources
             const crisisModal = $(`
                 <div id="crisisModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; display: flex; justify-content: center; align-items: center;">
                     <div style="background: white; padding: 30px; border-radius: 10px; max-width: 500px; text-align: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
@@ -132,40 +145,35 @@
                             <p><strong>Emergency Services: 911</strong></p>
                         </div>
                         <p style="font-size: 14px; color: #666;">You are not alone. Help is available 24/7.</p>
-                        <button onclick="$('#crisisModal').remove();" style="margin-top: 20px; padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer;">Close</button>
+                        <button onclick="$('#crisisModal').remove();" style="margin-top: 20px; padding: 10px 20px; background: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer;">Close</button>
                     </div>
                 </div>
             `);
-            
             $('body').append(crisisModal);
-            
-            // Auto-close after 30 seconds
-            setTimeout(function() {
-                $('#crisisModal').remove();
-            }, 30000);
+            setTimeout(function() { $('#crisisModal').remove(); }, 30000);
         }
     });
 </script>
 
-
 <style>
-    .chat-message {
-        margin: 10px 0;
-    }
-    .chat-bubble {
-        display: inline-block;
-        padding: 10px 15px;
-        max-width: 70%;
-        word-wrap: break-word;
-        font-size: 16px;
-    }
-    .crisis-message {
-        animation: pulse 2s infinite;
-    }
+    .chat-message { margin: 10px 0; }
+    .chat-bubble { display: inline-block; padding: 10px 14px; max-width: 75%; word-wrap: break-word; font-size: 16px; }
+    .crisis-message { animation: pulse 2s infinite; }
     @keyframes pulse {
         0% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0.7); }
         70% { box-shadow: 0 0 0 10px rgba(244, 67, 54, 0); }
         100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
     }
+
+    /* Typing indicator */
+    #typingIndicator .ellipsis { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
+    #typingIndicator .dot { width: 6px; height: 6px; background: #6b7280; border-radius: 9999px; display: inline-block; animation: bounce 1s infinite ease-in-out; }
+    #typingIndicator .dot:nth-child(2) { animation-delay: 0.15s; }
+    #typingIndicator .dot:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes bounce {
+        0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+        40% { transform: translateY(-4px); opacity: 1; }
+    }
+    .thinking-label { font-size: 13px; color: #6b7280; margin-right: 4px; }
 </style>
 {% endblock %}
