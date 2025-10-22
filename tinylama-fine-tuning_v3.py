@@ -13,27 +13,16 @@ from datasets import load_dataset
 from peft import LoraConfig, get_peft_model, TaskType
 import os
 
-# ----------------------------
-# Device info
-# ----------------------------
 device = "mps" if torch.backends.mps.is_available() else "cpu"
 print(f"Using device: {device}")
 
-# ----------------------------
-# Dataset
-# ----------------------------
 print("📥 Loading ShenLab/MentalChat16K dataset...")
 dataset = load_dataset("ShenLab/MentalChat16K")
 
-# Split the dataset into train and validation
 dataset = dataset["train"].train_test_split(test_size=0.1, seed=42)
-# Rename 'test' to 'validation' for consistency
 dataset["validation"] = dataset["test"]
 del dataset["test"]
 
-# ----------------------------
-# Tokenizer
-# ----------------------------
 MODEL_NAME = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 OUTPUT_DIR = "./tinylama-mental-health-mentalchat16k"
 OFFLOAD_DIR = "./offload"
@@ -45,29 +34,22 @@ tokenizer.pad_token = tokenizer.pad_token or tokenizer.eos_token
 tokenizer.padding_side = "right"
 tokenizer.model_max_length = 512
 
-# ----------------------------
-# Load model on MPS only (no CPU offload)
-# ----------------------------
 print("📥 Loading model on MPS only...")
 if device != "mps":
     raise RuntimeError("MPS is not available. Enable MPS or switch device.")
 
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
-    device_map={"": "mps"},   # force all modules to MPS
+    device_map={"": "mps"},
     torch_dtype=torch.float16,
     low_cpu_mem_usage=True
 )
 
-# Enable memory-efficient attention if supported
 try:
     setattr(model.config, "attn_implementation", "sdpa")
 except Exception:
     pass
 
-# ----------------------------
-# LoRA / PEFT
-# ----------------------------
 print("🔧 Setting up LoRA...")
 lora_config = LoraConfig(
     r=16,
@@ -79,7 +61,6 @@ lora_config = LoraConfig(
 )
 model = get_peft_model(model, lora_config)
 
-# Print trainable parameters manually
 def print_trainable_parameters(model):
     trainable_params = 0
     all_params = 0
@@ -92,25 +73,18 @@ def print_trainable_parameters(model):
 
 print_trainable_parameters(model)
 
-# Gradient checkpointing & disable cache
 model.gradient_checkpointing_enable()
 model.config.use_cache = False
-# Ensure inputs require grads when gradient checkpointing is enabled
 try:
     model.enable_input_require_grads()
 except AttributeError:
     pass
 
-# ----------------------------
-# Data preprocessing
-# ----------------------------
 def format_conversation(example):
     instruction = example.get("instruction", "")
     user_input = example.get("input", "")
     output = example.get("output", "")
     
-    # Format as a conversation between client and counselor
-    # Use the instruction as system prompt context, input as client message, output as counselor response
     text = f"<|system|>\n{instruction}\n<|user|>\n{user_input}\n<|assistant|>\n{output}"
     return {"text": text}
 
@@ -126,41 +100,32 @@ def tokenize_function(examples):
 
 tokenized_dataset = formatted_dataset.map(tokenize_function, batched=True)
 
-# ----------------------------
-# Training arguments
-# ----------------------------
 training_args = TrainingArguments(
     output_dir=OUTPUT_DIR,
-    per_device_train_batch_size=1,  # small batch for MPS memory
+    per_device_train_batch_size=1,
     gradient_accumulation_steps=8,
-    num_train_epochs=2,  # Reduced epochs since we have more data
-    eval_strategy="steps",  # Updated parameter name
-    eval_steps=500,  # Increased eval steps for larger dataset
+    num_train_epochs=2,
+    eval_strategy="steps",
+    eval_steps=500,
     learning_rate=1e-5,
-    fp16=False,                    # MUST be False on MPS
+    fp16=False,
     bf16=False,
     gradient_checkpointing=True,
-    optim="adamw_torch",          # avoid bitsandbytes optimizers on CPU/MPS
+    optim="adamw_torch",
     save_total_limit=2,
     logging_dir="./logs",
-    logging_steps=50,  # Increased logging steps
+    logging_steps=50,
     save_strategy="steps",
-    save_steps=500,  # Increased save steps for larger dataset
+    save_steps=500,
     report_to=[],
     dataloader_pin_memory=False,
 )
 
-# ----------------------------
-# Data collator
-# ----------------------------
 data_collator = DataCollatorForLanguageModeling(
     tokenizer=tokenizer,
     mlm=False
 )
 
-# ----------------------------
-# Trainer
-# ----------------------------
 
 class NoOpMoveTrainer(Trainer):
     def _move_model_to_device(self, model, device):
@@ -174,9 +139,6 @@ trainer = NoOpMoveTrainer(
     data_collator=data_collator
 )
 
-# ----------------------------
-# Train & Save
-# ----------------------------
 print("🏋️ Starting training...")
 trainer.train()
 
