@@ -8,6 +8,12 @@
         <div class="card-header">
             <div style="width: 10px; height: 10px; background:#10b981; border-radius: 9999px;"></div>
             <h1 class="card-title">Mental Health Support Chat</h1>
+            <p style="font-size: 14px; color: #6b7280; margin: 8px 0 0 0;">
+                A safe space to talk about what's on your mind. I'm here to listen and provide support.
+            </p>
+            <p style="font-size: 12px; color: #9ca3af; margin: 4px 0 0 0;">
+                (This is a personal project I built to help people who need someone to talk to)
+            </p>
         </div>
         <div id="chatArea" style="padding: 16px; height: 480px; overflow-y: auto; background-color: #fafafa; border-radius: 0 0 12px 12px;"></div>
     </div>
@@ -69,7 +75,7 @@
                 <span class="dot"></span>
             `;
             const typing = $('<div id="typingIndicator" class="chat-message">')
-                .append($('<div class="chat-bubble bot">').html(`<span class="thinking-label">Bot is thinking</span><span class="ellipsis">${dots}</span>`));
+                .append($('<div class="chat-bubble bot">').html(`<span class="thinking-label">Thinking...</span><span class="ellipsis">${dots}</span>`));
             typing.find('.chat-bubble').css({'background-color': '#eaeaea', 'color': '#111827', 'border-radius': '16px 16px 16px 0'});
             $('#chatArea').append(typing);
             scrollToBottom();
@@ -90,7 +96,6 @@
             }
 
             appendMessage('You', userInput, true);
-            // Clear the input immediately after submitting
             $('#userInput').val('');
             $('#userInput').prop('disabled', true);
             $('button[type="submit"]').prop('disabled', true);
@@ -165,7 +170,6 @@
         100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
     }
 
-    /* Typing indicator */
     #typingIndicator .ellipsis { display: inline-flex; gap: 4px; margin-left: 8px; vertical-align: middle; }
     #typingIndicator .dot { width: 6px; height: 6px; background: #6b7280; border-radius: 9999px; display: inline-block; animation: bounce 1s infinite ease-in-out; }
     #typingIndicator .dot:nth-child(2) { animation-delay: 0.15s; }

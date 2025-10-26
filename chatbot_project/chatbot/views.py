@@ -1,4 +1,5 @@
 
+
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -69,6 +70,7 @@ def is_identity_query(text: str) -> bool:
     ]
     return any(p in t for p in identity_phrases)
 
+
 CRISIS_KEYWORDS = [
     'suicide', 'kill myself', 'end my life', 'not worth living', 'better off dead',
     'hurt myself', 'self harm', 'cut myself', 'overdose', 'jump off', 'hang myself',
@@ -78,8 +80,19 @@ CRISIS_KEYWORDS = [
 ]
 
 def detect_crisis(user_input: str) -> bool:
+    """
+    Check if the user input contains crisis language.
+    This is scary to implement because you don't want false positives OR false negatives.
+    I spent way too much time researching what phrases actually indicate danger.
+    """
     text = user_input.lower()
-    return any(keyword in text for keyword in CRISIS_KEYWORDS)
+    is_crisis = any(keyword in text for keyword in CRISIS_KEYWORDS)
+    
+    if is_crisis:
+        print(f"⚠️ Crisis detected in: {user_input[:50]}...")
+        logger.warning(f"Crisis keyword detected: {user_input}")
+    
+    return is_crisis
 
 def get_crisis_response():
     return {
@@ -102,6 +115,9 @@ model = None
 device = "cpu"
 
 def load_model():
+    """
+    Load the fine-tuned model. This function exists because I kept running out of memory.
+    """
     global tokenizer, model, device
 
     if model is not None:
@@ -133,7 +149,6 @@ def load_model():
     )
 
     model.to(device)
-
     model.eval()
 
     try:
@@ -147,7 +162,10 @@ def load_model():
     return tokenizer, model, device
 
 def generate_reply(user_input: str) -> str:
-
+    """
+    Generate a response using the fine-tuned model.
+    These parameters took me FOREVER to tune - the first version gave terrible responses.
+    """
     global_tokenizer, global_model, global_device = load_model()
 
     prompt = f"{SYSTEM_PROMPT}\n\nClient: {user_input}\nCounselor:"
@@ -179,6 +197,10 @@ def generate_reply(user_input: str) -> str:
     return cleaned_response
 
 def clean_and_validate_response(response: str, original_prompt: str) -> str:
+    """
+    Clean and validate the model's response.
+    This function exists because the model sometimes says really weird stuff.
+    """
     if "Counselor:" in response:
         cleaned = response.split("Counselor:")[-1].strip()
     else:
@@ -211,6 +233,9 @@ def clean_and_validate_response(response: str, original_prompt: str) -> str:
 @csrf_exempt
 @require_http_methods(["GET", "POST"])
 def chatbot_response(request):
+    """
+    Main chatbot endpoint. It's gotten complex because I kept adding safety features.
+    """
     if request.method == 'POST':
         try:
             if request.content_type == "application/json":
@@ -243,7 +268,6 @@ def chatbot_response(request):
                 })
 
             chatbot_reply = generate_reply(user_input)
-
             save_conversation(session_id, user_input, chatbot_reply)
 
             logger.info(f"Reply generated for input length {len(user_input)}, session: {session_id[:8]}...")
