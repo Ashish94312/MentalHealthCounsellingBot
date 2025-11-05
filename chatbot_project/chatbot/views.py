@@ -115,9 +115,7 @@ model = None
 device = "cpu"
 
 def load_model():
-    """
-    Load the fine-tuned model. This function exists because I kept running out of memory.
-    """
+  
     global tokenizer, model, device
 
     if model is not None:
@@ -162,10 +160,7 @@ def load_model():
     return tokenizer, model, device
 
 def generate_reply(user_input: str) -> str:
-    """
-    Generate a response using the fine-tuned model.
-    These parameters took me FOREVER to tune - the first version gave terrible responses.
-    """
+   
     global_tokenizer, global_model, global_device = load_model()
 
     prompt = f"{SYSTEM_PROMPT}\n\nClient: {user_input}\nCounselor:"

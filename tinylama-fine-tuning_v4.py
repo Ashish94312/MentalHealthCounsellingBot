@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""
-Mental Health Chatbot Fine-tuning Script
-
-This script fine-tunes TinyLlama for mental health conversations using LoRA.
-I chose this approach after experimenting with full fine-tuning and finding
-that LoRA provides better results with less computational overhead.
-
-Key decisions made during development:
-- r=32: Found this gave better response quality than r=16
-- Gradient accumulation: Simulates larger batch sizes on limited hardware
-- Chat template: Crucial for maintaining conversational flow
-- 2 epochs: Sweet spot between underfitting and overfitting
-"""
 
 import os
 import torch
@@ -27,11 +14,6 @@ from peft import LoraConfig, get_peft_model, TaskType
 
 
 def select_device() -> str:
-    """
-    Device selection with preference for Apple Silicon MPS.
-    I prioritized MPS over CUDA because I developed this on a MacBook Air M1,
-    and MPS provides excellent performance for this model size.
-    """
     if torch.backends.mps.is_available():
         return "mps"
     if torch.cuda.is_available():
@@ -40,10 +22,6 @@ def select_device() -> str:
 
 
 def load_data() -> dict:
-    """
-    Load and split the mental health dataset.
-    ShenLab/MentalChat16K was the sweet spot - good quality, appropriate content.
-    """
     print("📥 Loading ShenLab/MentalChat16K dataset...")
     
     dataset = load_dataset("ShenLab/MentalChat16K")
@@ -91,12 +69,6 @@ def build_model(model_name: str, device: str) -> AutoModelForCausalLM:
 
 
 def apply_lora(model: AutoModelForCausalLM) -> AutoModelForCausalLM:
-    """
-    Apply LoRA configuration to the model.
-    I experimented with different r values and found r=32 provides
-    the best balance between adaptation capability and parameter efficiency.
-    The target modules cover both attention and MLP layers for comprehensive adaptation.
-    """
     print("🔧 Setting up LoRA...")
     lora_config = LoraConfig(
         r=32,
@@ -223,5 +195,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
