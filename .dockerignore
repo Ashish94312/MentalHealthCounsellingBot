@@ -1,24 +1,22 @@
-# Exclude unnecessary files from Docker build context
 
-# Training data and datasets
 data/
 *.jsonl
 *.arrow
 *.parquet
 
-# Training scripts
+
 tinylama-fine-tuning*.py
 solution.ipynb
 hf_upload.py
 
-# Development files
+
 .git/
 .gitignore
 *.md
 SETUP_INSTRUCTIONS.md
 README*.md
 
-# Python cache
+
 __pycache__/
 *.pyc
 *.pyo
@@ -26,40 +24,39 @@ __pycache__/
 .Python
 *.so
 
-# Virtual environments
+
 venv/
 env/
 .venv/
 
-# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS files
+
 .DS_Store
 Thumbs.db
 
-# Logs
+
 *.log
 
-# Checkpoint directories (keep only the main model)
+
 tinylama-mental-health-mentalchat16k/checkpoint-*/
 tinylama-mental-health/checkpoint-*/
 tinylama-mental-health-v2/checkpoint-*/
 
-# Other model versions (keep only the one in use)
+
 tinylama-mental-health/
 tinylama-mental-health-v2/
 
-# Development database
+
 db.sqlite3
 
-# Static files (will be collected during build)
+
 chatbot_project/chatbot_project/staticfiles/
 
-# Deployment configs (not needed in container)
+
 Dockerfile
 Dockerfile.railway
 Dockerfile.optimized
@@ -67,5 +64,3 @@ render.yaml
 railway.json
 Procfile
 requirements.txt
-# requirements-production.txt - needed for railway build
-# requirements-ultra-minimal.txt - needed for optimized build
